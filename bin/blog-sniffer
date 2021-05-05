@@ -4,7 +4,8 @@ require_relative '../lib/blog/sniffer'
 
 Blog::Page.create_hypertable_if_not_exists!
 
-Blog::TargetSites.all_urls.each do |url|
+urls = ARGV.empty? ?  Blog::TargetSites.all_urls : ARGV
+urls.each do |url|
   if Blog::Page.where(url: url).exists?
     puts "Ignoring #{url}"
     next

@@ -13,6 +13,13 @@ cd blog-sniffer
 bundle install
 ```
 
+Setup your micro instance on [Timescale for free](https://www.timescale.com/timescale-signup).
+Then you can configure your PG_URI or make it local.
+
+```
+export PG_URI="postgres://<user>:<password>@<host>:<port>/tsdb?sslmode=require"
+```
+
 Then you can use `bin/blog-sniffer *<urls>` to start crawling or simply:
 
 ```bash

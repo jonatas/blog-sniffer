@@ -3,6 +3,7 @@ require "pry"
 require 'benchmark'
 require_relative "agent"
 require_relative "page"
+require_relative "target_sites"
 
 module Blog
   module Sniffer

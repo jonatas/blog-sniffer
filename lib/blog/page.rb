@@ -13,7 +13,7 @@ module Blog
     end
 
     def self.create_hypertable_if_not_exists!
-      ActiveRecord::Base.establish_connection(ENV['docs_uri'])
+      ActiveRecord::Base.establish_connection(ENV['PG_URI'])
       unless self.table_exists?
         self.connection.execute(<<~SQL)
           CREATE TABLE IF NOT EXISTS pages (
