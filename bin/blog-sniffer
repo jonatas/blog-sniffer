@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby
+
+require_relative '../lib/blog/sniffer'
+
+Blog::Page.create_hypertable_if_not_exists!
+
+Blog::TargetSites.all_urls.each do |url|
+  if Blog::Page.where(url: url).exists?
+    puts "Ignoring #{url}"
+    next
+  end
+  spider = Blog::Sniffer::EngineeringDocs.new(root: url)
+
+  begin
+    spider.results.lazy.each_with_index do |result, i|
+      page = Blog::Page.new(result)
+      puts page.url
+      page.save
+    end
+  rescue Interrupt, IOError
+    require 'pry'; binding.pry
+  end
+end
+
