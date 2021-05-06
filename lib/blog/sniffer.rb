@@ -94,7 +94,7 @@ module Blog
         spider.record(metadata)
 
         page.links_with(href: /^\/|^#{Regexp.escape(@root)}/).each do |link|
-          next if link.href =~ /\.(mp4|pdf|docx|jpe?g)$/
+          next if link.href =~ /\.(mp4|pdf|png|docx|jpg|jpeg)$/
           spider.enqueue(link.href)
         end
       end
