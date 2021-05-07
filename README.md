@@ -383,6 +383,26 @@ SELECT word, count(*) FROM words where LENGTH(word) > 5 GROUP BY 1 ORDER BY 2 DE
 (10 rows)
 ```
 
+Some common words from facebook engineering headers:
+
+```sql
+WITH words AS ( SELECT REGEXP_SPLIT_TO_TABLE(headers::text, E'\\W+') AS word FROM pages WHERE url ~ 'engineering.fb.com')
+SELECT word, count(*) FROM words where LENGTH(word) > 5 GROUP BY 1 ORDER BY 2 DESC limit 10 offset 30;
+    word     | count
+-------------+-------
+ production  |    50
+ center      |    50
+ better      |    47
+ Networking  |    46
+ efficient   |    46
+ software    |    46
+ analysis    |    45
+ approach    |    45
+ Introducing |    43
+ hardware    |    43
+(10 rows)
+```
+
 If you reached the end of the analyzes with me, please, go ahead and try it
 yourself! Contribute with any insights you have :)
 
