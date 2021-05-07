@@ -1,7 +1,7 @@
 # Blog::Sniffer
 
 It allows you to fetch information from all engineering blog posts from 
-[this list](https://github.com/kilimchoi/engineering-blogs)(https://github.com/kilimchoi/engineering-blogs)
+[this list](https://github.com/kilimchoi/engineering-blogs)
 and save it in a database for further analysis.
 
 ## Why?
@@ -67,42 +67,95 @@ but it uses a low band and memory.
 
 A few tabs in parallel is enough. In 10+ hours I got 32k pages downloaded.
 
-## Usage
+So, let's explain this journey using SQL, so, you can better understand the
+results.
 
-Check [bin/blog-sniffer](bin/blog-sniffer) to get more details in a massive
-crawling system, but the basics are:
+## State of art
 
-Run `bin/console` to get the classes loaded into a pry session:
+I downloaded `228849` pages in `19 hours` from my home :)
 
-```ruby
-[1] pry(main)> spider = Blog::Sniffer::EngineeringDocs.new(root: "https://blog.timescale.com")
-=> #<Blog::Sniffer::EngineeringDocs:0x00007fcdbc26dae0 @root="https://blog.timescale.com">
-[2] pry(main)> spider.results.lazy.take(1).first
-Handling  : "https://blog.timescale.com"
-=> {:title=>"Timescale Blog",
- :headers=>
-  ["$40 million to help developers measure everything that matters",
-   "Timescale Newsletter Roundup: March 2021 Edition", ....],
- :links=>
-  {["Products"]=>"https://www.timescale.com/products",
-   ["Docs"]=>"https://docs.timescale.com",
-   ["Blog"]=>"https://blog.timescale.com/",
-   ["Log into Timescale Cloud"]=>"https://portal.timescale.cloud/login",
-   ["Log into Timescale Forge"]=>"https://console.forge.timescale.com/",
-   ["Try for free"]=>"https://www.timescale.com/timescale-signup", ...}
- :body=>
-  [ "We're excited to announce that we've a raised $40M Series B, ...", ...]
- :html_size=>135963,
- :time_to_fetch=>2.063971000025049,
- :url=>"https://blog.timescale.com"}
+```sql
+ SELECT MIN(time) AS start,
+   MAX(time) AS end,
+   COUNT(1) AS total_pages,
+   EXTRACT(EPOCH FROM(MAX(time) - MIN(time)) / 3600)::INTEGER AS hours_of_adventure
+   FROM pages;
+            start             |              end              | total_pages | hours_of_adventure
+------------------------------+-------------------------------+-------------+--------------------
+ 2021-05-05 19:05:43.54879+00 | 2021-05-06 14:05:51.156821+00 |      228849 |                 19
 ```
 
-## Development
+But, I haven't worked all the day and have paused it for several hours, so,
+let's have a look on the total pages downloaded per hour.
 
-After checking out the repo, run `bin/setup` to install dependencies.
+I'll use [time_bucket](https://docs.timescale.com/api/latest/analytics/time_bucket/) function.
 
-It does not contain any spec as I wrote it as a POC. Feel free to contribute and
-add them ;)
+```sql
+ SELECT time_bucket('1 hour', time) AS hour,
+   COUNT(1) AS total_pages,
+   pg_size_pretty(SUM(html_size)) AS bandwidth
+   FROM pages
+   GROUP BY 1;
+          hour          | total_pages | bandwidth
+------------------------+-------------+-----------
+ 2021-05-05 19:00:00+00 |        8154 | 1083 MB
+ 2021-05-05 20:00:00+00 |         890 | 154 MB
+ 2021-05-05 21:00:00+00 |        7818 | 1039 MB
+ 2021-05-05 22:00:00+00 |           8 | 164 kB
+ 2021-05-06 00:00:00+00 |         340 | 19 MB
+ 2021-05-06 01:00:00+00 |         500 | 26 MB
+ 2021-05-06 02:00:00+00 |        1828 | 358 MB
+ 2021-05-06 03:00:00+00 |        8773 | 808 MB
+ 2021-05-06 04:00:00+00 |       15926 | 1971 MB
+ 2021-05-06 05:00:00+00 |       18978 | 2543 MB
+ 2021-05-06 06:00:00+00 |       19905 | 2485 MB
+ 2021-05-06 07:00:00+00 |       22292 | 3111 MB
+ 2021-05-06 08:00:00+00 |       22141 | 3429 MB
+ 2021-05-06 09:00:00+00 |       21836 | 1962 MB
+ 2021-05-06 10:00:00+00 |       18465 | 2026 MB
+ 2021-05-06 11:00:00+00 |       24662 | 1549 MB
+ 2021-05-06 12:00:00+00 |       19350 | 1935 MB
+ 2021-05-06 13:00:00+00 |       16653 | 1722 MB
+ 2021-05-06 14:00:00+00 |         330 | 12 MB
+```
+
+If you clicked in the link before, maybe you would like to get to know more
+about `time_bucket` and build an amazing query for it:
+
+```sql
+SELECT url FROM pages WHERE title ~ 'time_bucket';
+                                               url
+--------------------------------------------------------------------------------------------------
+ https://docs.timescale.com/api/latest/analytics/time_bucket/
+ https://docs.timescale.com/api/latest/analytics/time_bucket_gapfill/
+ https://blog.timescale.com/blog/simplified-time-series-analytics-using-the-time_bucket-function/
+(3 rows)
+```
+
+## Where the information comes from?
+
+Counting pages per host. Extracting domain would be a bit more complicated, but
+here we can have a good overview of the most richful sources.
+
+```sql
+SELECT SPLIT_PART(url,'/',3) as host,
+  COUNT(1)
+FROM pages
+GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
+       host              | count
+-------------------------+-------
+ medium.com              | 22132
+ tech.lendinghome.com    |  2000
+ www.stackabuse.com      |  1998
+ blog.codinghorror.com   |  1992
+ www.drivenbycode.com    |  1989
+ engblog.nextdoor.com    |  1988
+ sitepoint.com           |  1986
+ snyk.io                 |  1942
+ engineroom.teamwork.com |  1859
+ blog.fedecarg.com       |  1842
+(10 rows)
+```
 
 ## Getting familiar with the Postgresql Text Search Controls
 
@@ -131,7 +184,7 @@ $$
 LANGUAGE SQL;
 ```
 
-Trying it;
+Trying it:
 
 ```sql
 select rank, title from get_ranked_posts('postgresql+scaling');
@@ -142,7 +195,7 @@ select rank, title from get_ranked_posts('postgresql+scaling');
  ...
 ```
 
-Testing different queries with different limit:
+Testing a different subject with another limit:
 
 ```sql
 select rank, url from get_ranked_posts('Analytical+Platform',7) ;
@@ -160,25 +213,6 @@ select rank, url from get_ranked_posts('Analytical+Platform',7) ;
 
 Some results are still repeated as I didn't have the proper time to normalize
 all the urls before fetch it. Feel free to contribute :raised_hands:
-
-Exploring pages per domain:
-
-```sql
-select split_part(url,'/',3),count(1) from pages group by 1 order by 2 desc limit 10;
-       split_part        | count
--------------------------+-------
- medium.com              | 22132
- tech.lendinghome.com    |  2000
- www.stackabuse.com      |  1998
- blog.codinghorror.com   |  1992
- www.drivenbycode.com    |  1989
- engblog.nextdoor.com    |  1988
- sitepoint.com           |  1986
- snyk.io                 |  1942
- engineroom.teamwork.com |  1859
- blog.fedecarg.com       |  1842
-(10 rows)
-```
 
 Let's check the worst scenarios we had fetching the data from websites:
 
@@ -219,10 +253,17 @@ select split_part(url,'/',3) as domain, avg(time_to_fetch) from pages group by 1
  blog.blundellapps.co.uk             |           1 | 3.5754189491271973 |   3.575419 | 17 kB
 ```
 
-## What domains we spend more time crawling
+## Where the crawler spent the time
 
 ```sql
-select split_part(url,'/',3) as domain,count(1) as total_pages, avg(time_to_fetch) as avg_time_to_fetch, sum(time_to_fetch) as total_time, pg_size_pretty(sum(html_size)) as bandwidth from pages group by 1 order by 4 desc limit 10;
+SELECT split_part(url,'/',3) as domain,
+  count(1) as total_pages,
+  avg(time_to_fetch) as avg_time_to_fetch,
+  sum(time_to_fetch) as total_time,
+  pg_size_pretty(sum(html_size)) as bandwidth
+FROM pages
+GROUP BY 1 ORDER BY 4 DESC LIMIT 10;
+
         domain        | total_pages | avg_time_to_fetch  | total_time | bandwidth
 ----------------------+-------------+--------------------+------------+-----------
  medium.com           |       22132 | 0.7525404742870937 |   16655.22 | 4201 MB
@@ -237,13 +278,49 @@ select split_part(url,'/',3) as domain,count(1) as total_pages, avg(time_to_fetc
  snyk.io              |        1942 | 0.7906604430357227 |  1535.4626 | 146 MB
 ```
 
-If you reached the end of the analyzes with me, please leave a star and
-contribute!
+If you reached the end of the analyzes with me, please, go ahead and try it
+yourself! Contribute with any insights you have :)
+
+## Usage
+
+Check [bin/blog-sniffer](bin/blog-sniffer) to get more details in a massive
+crawling system, but the basics are:
+
+Run `bin/console` to get the classes loaded into a pry session:
+
+```ruby
+[1] pry(main)> spider = Blog::Sniffer::EngineeringDocs.new(root: "https://blog.timescale.com")
+=> #<Blog::Sniffer::EngineeringDocs:0x00007fcdbc26dae0 @root="https://blog.timescale.com">
+[2] pry(main)> spider.results.lazy.take(1).first
+Handling  : "https://blog.timescale.com"
+=> {:title=>"Timescale Blog",
+ :headers=>
+  ["$40 million to help developers measure everything that matters",
+   "Timescale Newsletter Roundup: March 2021 Edition", ....],
+ :links=>
+  {["Products"]=>"https://www.timescale.com/products",
+   ["Docs"]=>"https://docs.timescale.com",
+   ["Blog"]=>"https://blog.timescale.com/",
+   ["Log into Timescale Cloud"]=>"https://portal.timescale.cloud/login",
+   ["Log into Timescale Forge"]=>"https://console.forge.timescale.com/",
+   ["Try for free"]=>"https://www.timescale.com/timescale-signup", ...}
+ :body=>
+  [ "We're excited to announce that we've a raised $40M Series B, ...", ...]
+ :html_size=>135963,
+ :time_to_fetch=>2.063971000025049,
+ :url=>"https://blog.timescale.com"}
+```
+
+## Development
+
+After checking out the repo, run `bin/setup` to install dependencies.
+
+It does not contain any spec as I wrote it as a POC. Feel free to contribute and
+add them ;)
 
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/jonatas/blog-sniffer. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [code of conduct](https://github.com/jonatas/blog-sniffer/blob/master/CODE_OF_CONDUCT.md).
-
 
 ## License
 
