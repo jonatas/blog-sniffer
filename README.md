@@ -154,9 +154,51 @@ SELECT SPLIT_PART(url,'/',3) as host, COUNT(1) FROM pages GROUP BY 1 ORDER BY 2 
 (10 rows)
 ```
 
+## Exploring dynamic content
+
+What if I reload  the page and the title of the website changed?
+Let's discover who is doing that:
+
+```sql
+SELECT url, ARRAY_AGG(title)
+FROM pages
+GROUP BY 1 HAVING COUNT(DISTINCT title) > 1
+ORDER BY COUNT(DISTINCT title) DESC LIMIT 10;
+                     url                      |                                                        array_agg
+----------------------------------------------+-------------------------------------------------------------------------------------------------------------------------
+ http://blog.honeybadger.io/                  | {"Honeybadger Developer Blog","Exception and Uptime Monitoring for Application Developers - Honeybadger"}
+ http://blog.mandrill.com/                    | {"All-In-One Integrated Marketing Platform for Small Business","What is Transactional Email?"}
+ http://devblog.coolblue.nl/                  | {"DEV Community 👩‍💻👨‍💻","Coolblue - DEV Community"}
+ http://facebook.github.io/react-native/blog/ | {"React Native · Learn once, write anywhere","Blog · React Native"}
+ http://jakewharton.com/blog                  | {"Jake Wharton","Posts - Jake Wharton"}
+ http://jlongster.com/archive                 | {"James Long","All Posts"}
+ http://multithreaded.stitchfix.com/blog/     | {"Stitch Fix Technology – Multithreaded","Blog | Stitch Fix Technology – Multithreaded"}
+ http://rocksdb.org/blog                      | {"GitHub Documentation","Blog | RocksDB"}
+ http://www.boxever.com/blog/                 | {"Boxever Digital Optimisation Platform","Boxever Insights","Boxever Digital Optimisation Platform","Boxever Insights"}
+ http://blog.faraday.io/                      | {"AI for B2C growth | Faraday AI","The Faraday Blog"}
+(10 rows)
+```
+Funny, no? :smile:
+
 ## Getting familiar with the Postgresql Text Search Controls
 
 Getting a ranked titles using [text search controls](https://www.postgresql.org/docs/13/textsearch-controls.html).
+
+Let's start with `to_tsvector`:
+
+```
+select title, to_tsvector(title) from pages where  url ~ 'hypertable' limit 5;
+                  title                   |                  to_tsvector
+------------------------------------------+-----------------------------------------------
+ Distributed Hypertables | Timescale Docs | 'distribut':1 'doc':4 'hypert':2 'timescal':3
+ ALTER | Timescale Docs                   | 'alter':1 'doc':3 'timescal':2
+ DROP | Timescale Docs                    | 'doc':3 'drop':1 'timescal':2
+ CREATE | Timescale Docs                  | 'creat':1 'doc':3 'timescal':2
+ Hypertables & Chunks | Timescale Docs    | 'chunk':2 'doc':4 'hypert':1 'timescal':3
+(5 rows)
+```
+
+Now, let's use `to_tsquery` with `@@` operator to combine queries over vectors:
 
 ```sql
 SELECT title, ts_rank_cd(to_tsvector(title), query) AS rank
@@ -277,6 +319,68 @@ GROUP BY 1 ORDER BY 4 DESC LIMIT 10;
  sitepoint.com        |        1986 | 0.8376746205228484 |  1663.6222 | 254 MB
  team.goodeggs.com    |         891 | 1.7691494242594432 |   1576.312 | 117 MB
  snyk.io              |        1942 | 0.7906604430357227 |  1535.4626 | 146 MB
+```
+
+## What are the most used words in the titles?
+
+```sql
+WITH words AS ( SELECT REGEXP_SPLIT_TO_TABLE(title, E'\\W+') AS word FROM pages)
+SELECT word, count(*) FROM words
+WHERE LENGTH(word) > 5 -- Just to skip in, on, at, etc
+GROUP BY 1 ORDER BY 2 DESC limit 10;
+    word     | count
+-------------+-------
+ Medium      | 27117
+ Engineering | 21363
+ Facebook    | 16398
+ Archives    |  4287
+ Developer   |  4180
+ Cloudflare  |  3976
+ Google      |  3545
+ Software    |  3282
+ Product     |  3157
+ Protection  |  3138
+```
+
+## Most common words
+
+Let's explore the most common words in the Timescale domain:
+
+```sql
+WITH words AS ( SELECT REGEXP_SPLIT_TO_TABLE(title, E'\\W+') AS word FROM pages WHERE url ~ 'timescale.com')
+SELECT word, count(*) FROM words where LENGTH(word) > 5 GROUP BY 1 ORDER BY 2 DESC limit 10;
+    word     | count
+-------------+-------
+ Timescale   |   583
+ TimescaleDB |   130
+ series      |   111
+ PostgreSQL  |    76
+ database    |    56
+ Series      |    42
+ Create      |    41
+ Grafana     |    37
+ Database    |    33
+ Building    |    29
+ ```
+
+ As you can see we're not normalizing the words, so, let's `LOWER` them to unify the duplicated words:
+
+ ```sql
+ tsdb=> WITH words AS ( SELECT REGEXP_SPLIT_TO_TABLE(LOWER(title), E'\\W+') AS word FROM pages WHERE url ~ 'timescale.com')
+SELECT word, count(*) FROM words where LENGTH(word) > 5 GROUP BY 1 ORDER BY 2 DESC limit 10;
+    word     | count
+-------------+-------
+ timescale   |   583
+ series      |   153
+ timescaledb |   134
+ database    |    89
+ postgresql  |    76
+ create      |    45
+ grafana     |    37
+ building    |    32
+ continuous  |    28
+ aggregates  |    26
+(10 rows)
 ```
 
 If you reached the end of the analyzes with me, please, go ahead and try it
