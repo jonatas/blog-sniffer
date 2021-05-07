@@ -138,10 +138,7 @@ Counting pages per host. Extracting domain would be a bit more complicated, but
 here we can have a good overview of the most richful sources.
 
 ```sql
-SELECT SPLIT_PART(url,'/',3) as host,
-  COUNT(1)
-FROM pages
-GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
+SELECT SPLIT_PART(url,'/',3) as host, COUNT(1) FROM pages GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
        host              | count
 -------------------------+-------
  medium.com              | 22132
@@ -217,7 +214,7 @@ all the urls before fetch it. Feel free to contribute :raised_hands:
 Let's check the worst scenarios we had fetching the data from websites:
 
 ```sql
-select split_part(url,'/',3) as domain, avg(time_to_fetch) from pages group by 1 order by 2 desc limit 10;
+SELECl SPLIT_PART(url,'/',3) AS domain, AVG(time_to_fetch) FROM pages GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
                domain                |        avg
 -------------------------------------+--------------------
  michaelcrump.net                    |  64.85552978515625
@@ -238,7 +235,12 @@ select split_part(url,'/',3) as domain, avg(time_to_fetch) from pages group by 1
 > Note that these are the slowest websites considering I did it from my home 🇧🇷
 
 ```sql
- select split_part(url,'/',3) as domain,count(1) as total_pages, avg(time_to_fetch) as avg_time_to_fetch, sum(time_to_fetch) as total_time, pg_size_pretty(sum(html_size)) as bandwidth from pages group by 1 order by 3 desc limit 10;
+SELECT SPLIT_PART(url,'/',3) AS domain, COUNT(1) as total_pages,
+  AVG(time_to_fetch) AS avg_time_to_fetch,
+  SUM(time_to_fetch) AS total_time,
+  PG_SIZE_PRETTY(SUM(html_size)) AS bandwidth
+FROM pages
+GROUP BY 1 ORDER BY 3 DESC LIMIT 10;
                domain                | total_pages | avg_time_to_fetch  | total_time | bandwidth
 -------------------------------------+-------------+--------------------+------------+-----------
  michaelcrump.net                    |           1 |  64.85552978515625 |   64.85553 | 16 kB
@@ -256,11 +258,10 @@ select split_part(url,'/',3) as domain, avg(time_to_fetch) from pages group by 1
 ## Where the crawler spent the time
 
 ```sql
-SELECT split_part(url,'/',3) as domain,
-  count(1) as total_pages,
-  avg(time_to_fetch) as avg_time_to_fetch,
-  sum(time_to_fetch) as total_time,
-  pg_size_pretty(sum(html_size)) as bandwidth
+SELECT SPLIT_PART(url,'/',3) AS domain, COUNT(1) AS total_pages,
+  AVG(time_to_fetch) AS avg_time_to_fetch,
+  SUM(time_to_fetch) AS total_time,
+  PG_SIZE_PRETTY(SUM(html_size)) AS bandwidth
 FROM pages
 GROUP BY 1 ORDER BY 4 DESC LIMIT 10;
 
