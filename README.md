@@ -187,7 +187,7 @@ Getting a ranked titles using [text search controls](https://www.postgresql.org/
 Let's start with `to_tsvector`:
 
 ```
-select title, to_tsvector(title) from pages where  url ~ 'hypertable' limit 5;
+SELECT title, to_tsvector(title) FROM pages WHERE url ~ 'hypertable' LIMIT 5;
                   title                   |                  to_tsvector
 ------------------------------------------+-----------------------------------------------
  Distributed Hypertables | Timescale Docs | 'distribut':1 'doc':4 'hypert':2 'timescal':3
