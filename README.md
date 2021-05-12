@@ -266,6 +266,60 @@ CREATE OR REPLACE FUNCTION get_ts_url_for(text, integer default 5) RETURNS setof
 $$
 LANGUAGE SQL;
 ```
+
+Running it, the timing is not very satisfatory:
+
+```sql
+\timing
+tsdb=> select distinct url from get_ts_url_for('hypertable', 10);
+...
+Time: 2200.911 ms (00:02.201)
+```
+
+Let's create a materialized view to only get timescale content preprocessing the
+vector we're going to use for the search and limiting the scope to the domain we
+want:
+
+```sql
+DROP MATERIALIZED VIEW timescale_content;
+ CREATE MATERIALIZED VIEW timescale_content AS
+    SELECT title, url,
+      to_tsvector(regexp_replace(url, '[^\w]+', ' ', 'gi') || title) AS search_vector
+    FROM pages
+    WHERE url ~ '^https://(blog|docs).timescale.com';
+SELECT 960
+Time: 2817.970 ms (00:02.818)
+```
+Now, let's rewrite the `get_ts_url_for` function to use the previous view that
+will limit the search and use pre-processed ts_vector combining `url`, `title`
+and `headers`.
+
+```sql
+CREATE OR REPLACE FUNCTION get_ts_url_for(text, integer default 5) RETURNS setof ranked_post
+  AS $$
+    SELECT title, url,
+    ts_rank_cd(search_vector, query) AS rank
+    FROM timescale_content, plainto_tsquery('english', $1) query
+    WHERE query @@ search_vector
+    ORDER BY rank DESC
+    LIMIT $2;
+$$
+LANGUAGE SQL;
+CREATE FUNCTION
+Time: 388.378 ms
+```
+
+Now, let's see the timing for the same query:
+
+```sql
+select distinct url from get_ts_url_for('hypertable', 10);        https://docs.timescale.com/timescaledb/latest/overview/release-notes/changes-in-timescaledb-2/#caggs
+... 
+Time: 297.890 ms
+```
+
+7 times faster :tada:
+
+
 And I use fish shell, so, I'll write a short script to easily get it from the
 command line:
 
@@ -277,6 +331,7 @@ function ts_url --description "Get URL searching on timescale docs"
   psql $docs_uri -c "$query"
 end
 ```
+
 And, loading it in my fish sources, I can use:
 
 
@@ -296,7 +351,53 @@ ts_url hypertable
  https://docs.timescale.com/api/latest/hypertable/create_hypertable/
 ```
 
-Let's create one more shortcut to also copy the link top ranked result to the clipboard:
+Now, let's explore a bit of the power of the ts search:
+
+```bash
+ts_url hypertable drop
+                                            url
+-------------------------------------------------------------------------------------------
+ https://docs.timescale.com/timescaledb/latest/how-to-guides/hypertables/drop/
+ https://docs.timescale.com/timescaledb/latest/how-to-guides/distributed-hypertables/drop/
+ https://docs.timescale.com/api/latest/hypertable/drop_chunks/
+(3 rows)
+```
+
+Let's get deep and select only `drop+chunks`:
+
+
+```bash
+⋊> ~ ts_url hypertable drop chunk                                                                                               11:25:39
+                              url
+---------------------------------------------------------------
+ https://docs.timescale.com/api/latest/hypertable/drop_chunks/
+(1 row)
+```
+
+If we revert the order of the words it should still work:
+
+```bash
+⋊> ~ ts_url hypertable chunk drop                                                                                               11:25:53
+                              url
+---------------------------------------------------------------
+ https://docs.timescale.com/api/latest/hypertable/drop_chunks/
+(1 row)
+```
+
+Reverting the order of all words in the content:
+
+```bash
+⋊> ~ ts_url chunk drop  hypertable                                                                                              11:26:03
+                              url
+---------------------------------------------------------------
+ https://docs.timescale.com/api/latest/hypertable/drop_chunks/
+(1 row)
+```
+
+It's really working :dancers:
+
+Now, let's create one more shortcut to also copy the top ranked link to the clipboard:
+
 
 ```fish
 function ccc_url --description "Copy top URL searching on timescale docs"
@@ -308,7 +409,9 @@ end
 Some results are still repeated as I didn't have the proper time to normalize
 all the urls before fetch it. Feel free to contribute :raised_hands:
 
-Let's check the worst scenarios we had fetching the data from websites:
+## Worst Scenarios fetching data
+
+Let's check the average time to download a page grouped by domain:
 
 ```sql
 SELECl SPLIT_PART(url,'/',3) AS domain, AVG(time_to_fetch) FROM pages GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
