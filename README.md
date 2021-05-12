@@ -250,6 +250,61 @@ select rank, url from get_ranked_posts('Analytical+Platform',7) ;
 (7 rows)
 ```
 
+Now, achieving one of my challenges to get the top posts I want from Timescale
+blog or docs:
+
+```sql
+CREATE OR REPLACE FUNCTION get_ts_url_for(text, integer default 5) RETURNS setof ranked_post
+  AS $$
+    SELECT title, url,
+    ts_rank_cd(to_tsvector(title), query) + ts_rank_cd(to_tsvector(url), query) AS rank
+    FROM pages, plainto_tsquery('english', $1) query
+    WHERE url ~ '^https://(blog|docs).timescale.com'
+      AND (query @@ to_tsvector(title) OR query @@ to_tsvector(url))
+    ORDER BY rank DESC
+    LIMIT $2;
+$$
+LANGUAGE SQL;
+```
+And I use fish shell, so, I'll write a short script to easily get it from the
+command line:
+
+```fish
+set -gx docs_uri "postgres://<user>:<pass>@<host>:<port>/<dbname>?sslmode=require"
+
+function ts_url --description "Get URL searching on timescale docs"
+  set query "select distinct url from get_ts_url_for('$argv', 10);"
+  psql $docs_uri -c "$query"
+end
+```
+And, loading it in my fish sources, I can use:
+
+
+```bash
+ts_url hypertable
+                                              url
+-----------------------------------------------------------------------------------------------
+ https://docs.timescale.com/timescaledb/latest/overview/core-concepts/distributed-hypertables/
+ https://docs.timescale.com/timescaledb/latest/getting-started/create-hypertable/
+ https://docs.timescale.com/timescaledb/latest/how-to-guides/schema-management/alter/
+ https://docs.timescale.com/timescaledb/latest/how-to-guides/hypertables/
+ https://docs.timescale.com/api/latest/distributed-hypertables/create_distributed_hypertable/
+ https://docs.timescale.com/timescaledb/latest/overview/core-concepts/hypertables-and-chunks/
+ https://docs.timescale.com/api/latest/hypertable/
+ https://docs.timescale.com/api/latest/hypertable/hypertable_size/
+ https://docs.timescale.com/timescaledb/latest/how-to-guides/distributed-hypertables/
+ https://docs.timescale.com/api/latest/hypertable/create_hypertable/
+```
+
+Let's create one more shortcut to also copy the link top ranked result to the clipboard:
+
+```fish
+function ccc_url --description "Copy top URL searching on timescale docs"
+  set query "select distinct url from get_ts_url_for('$argv', 1);"
+  psql $docs_uri -c "$query"  | tail -n 3 | head -n 1| pbcopy
+end
+```
+
 Some results are still repeated as I didn't have the proper time to normalize
 all the urls before fetch it. Feel free to contribute :raised_hands:
 
