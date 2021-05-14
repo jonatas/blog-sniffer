@@ -57,9 +57,7 @@ bin/blog-sniffer
 ```
 
 It will sniff all websites over [lib/blog/target_sites](lib/blog/target_sites.rb) that is fetching everything
-from this [repo](https://github.com/kilimchoi/engineering-blogs). To run over all repo list it took over 24 hours to me.
-
-Around 200k pages.
+from this [repo](https://github.com/kilimchoi/engineering-blogs). To run over all repo list it took ~19 hours to me. Around 200k pages.
 
 You can open and run parallel process and it will keep expanding and fetching
 more URLs. The modem of my house got stuck after hours parallelizing 10 process,
@@ -398,12 +396,58 @@ It's really working :dancers:
 
 Now, let's create one more shortcut to also copy the top ranked link to the clipboard:
 
-
 ```fish
 function ccc_url --description "Copy top URL searching on timescale docs"
   set query "select distinct url from get_ts_url_for('$argv', 1);"
   psql $docs_uri -c "$query"  | tail -n 3 | head -n 1| pbcopy
 end
+```
+
+## Most common words
+
+We can use [ts_stat](https://www.postgresql.org/docs/current/textsearch-features.html)
+to get the top most used words:
+
+```sql
+SELECT *
+FROM ts_stat($$SELECT to_tsvector('english', title) FROM pages$$)
+ORDER BY ndoc DESC
+LIMIT 10;
+   word   | ndoc  | nentry
+----------+-------+--------
+ blog     | 34361 |  35065
+ medium   | 26995 |  27182
+ engin    | 23974 |  25833
+ facebook | 14594 |  16400
+ page     | 12717 |  12740
+ develop  | 11512 |  12237
+ use      |  6374 |   6522
+ tech     |  6373 |   6617
+ code     |  6353 |   6602
+ archiv   |  5442 |   5568
+(10 rows)
+```
+And also reuse our `timescale_content` view to check the statistics only of
+timescale content:
+
+```sql
+SELECT *
+FROM ts_stat($$SELECT search_vector FROM timescale_content$$)
+ORDER BY ndoc DESC
+LIMIT 10;
+    word     | ndoc | nentry
+-------------+------+--------
+ https       |  960 |    960
+ timescal    |  960 |   1761
+ com         |  957 |    957
+ blog        |  486 |   1046
+ timescaledb |  483 |    671
+ doc         |  474 |    947
+ latest      |  472 |    473
+ data        |  204 |    343
+ guid        |  196 |    198
+ time        |  192 |    347
+(10 rows)
 ```
 
 Some results are still repeated as I didn't have the proper time to normalize
