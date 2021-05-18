@@ -523,6 +523,68 @@ GROUP BY 1 ORDER BY 4 DESC LIMIT 10;
  snyk.io              |        1942 | 0.7906604430357227 |  1535.4626 | 146 MB
 ```
 
+## How many pages got duplicated with links redirection?
+
+I was trying to understand several pages generates '----' in the URL, so I
+decided to inspect it a bit:
+
+```sql
+select url from pages where url ~ '-------' limit 5;
+                                                                                      url
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ https://...8d7f8425882?source=collection_home---4------0-----------------------
+ https://...821168da?source=collection_home---4------1-----------------------
+ https://...apache-flink-723ce072b7d2?source=collection_home---4------2-----------------------
+ https://...g-data-hub-ba2605558883?source=collection_home---4------3-----------------------
+ https://...1f3d87def1?source=collection_home---4------4-----------------------
+```
+I just reduced the urls to make it more visible what I mean.
+
+So  I thought about double checking how many duplications I got just because of
+the extra params I have, so let's understand the picture:
+
+```sql
+select count(url) from pages where url ~ '-------' ;
+ count
+-------
+ 33296
+(1 row)
+```
+Wow, almost 15% of the data.
+
+Now, let's count how many full duplicates we have:
+```sql
+tsdb=> select count(distinct url) from pages where url ~ '-------' ;
+ count
+-------
+ 30668
+(1 row)
+```
+
+Normalizing the urls ignoring all params to check how many real sources we have:
+
+```sql
+select count(distinct split_part(url,'?',1)) from pages where url ~ '-------';
+ count
+-------
+ 12173
+(1 row)
+```
+Now, confirming how many of this pages are the root pages of this 30k cases:
+
+```sql
+WITH normalized_urls AS (
+  SELECT DISTINCT SPLIT_PART(url,'?',1) AS url
+  FROM pages
+  WHERE url ~ '-------' 
+)
+SELECT COUNT(1) FROM pages WHERE url IN (SELECT url FROM normalized_urls);
+```
+
+Interesting: 10% of the pages are fully URLs with different parameters!
+`:iseewhatyoudidthere:`.
+
+
 ## What are the most used words in the titles?
 
 ```sql
