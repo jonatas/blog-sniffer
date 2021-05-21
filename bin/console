@@ -2,6 +2,19 @@
 
 require "bundler/setup"
 require "blog/sniffer"
+require 'reality'
 require "pry"
+
+def entity(name)
+  Reality::Entity.new(name).tap(&:load!)
+end
+
+def show(entity)
+  entity(entity)&.describe
+end
+
+def infobox(entity)
+  entity(entity)&.wikipage&.infobox&.to_h
+end
 
 Pry.start

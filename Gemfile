@@ -9,3 +9,5 @@ gem "rake", "~> 12.0"
 gem "rspec", "~> 3.0"
 gem "activerecord", "~> 6.1"
 gem "composite_primary_keys", "~> 6.0"
+
+gem "reality", "~> 0.0.5"
