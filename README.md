@@ -606,6 +606,43 @@ GROUP BY 1 ORDER BY 2 DESC limit 10;
  Protection  |  3138
 ```
 
+## What are the most common call to action in the bottom of tutorial pages?
+
+```sql
+SELECT headers[array_length(headers,1)], count(1)
+FROM pages
+WHERE title ~ 'tutorial'
+AND ARRAY_LENGTH(headers,1) > 1
+GROUP BY 1 ORDER BY 2 DESC LIMIT 5;
+       headers        | count
+----------------------+-------
+ Share your thinking. |    25
+ Popular posts        |    18
+ Tags                 |    12
+ Books I've written   |     9
+ Other                |     7
+(5 rows)
+```
+
+## What are the most common call to action in the bottom of any page?
+
+```
+ select headers[array_length(headers,1)], count(1) from pages where array_length(headers,1) > 1 group by 1 order by 2 desc limit 10;
+          headers           | count
+----------------------------+-------
+ Share your thinking.       | 15790
+ RELATED CATEGORIES         |  8473
+ Resources                  |  3212
+ Connect                    |  3067
+ Meta                       |  3064
+ Tags                       |  2815
+ Post navigation            |  2753
+ Categories                 |  2745
+ Leave a Reply Cancel reply |  2718
+ RSS                        |  2246
+(10 rows)
+```
+
 ## Most common words
 
 Let's explore the most common words in the Timescale domain:
