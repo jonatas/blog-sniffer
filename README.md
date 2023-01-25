@@ -176,7 +176,7 @@ ORDER BY COUNT(DISTINCT title) DESC LIMIT 10;
  http://blog.faraday.io/                      | {"AI for B2C growth | Faraday AI","The Faraday Blog"}
 (10 rows)
 ```
-Funny, no? :smile:
+Funny, right? :smile:
 
 ## Getting familiar with the Postgresql Text Search Controls
 
@@ -403,6 +403,48 @@ function ccc_url --description "Copy top URL searching on timescale docs"
 end
 ```
 
+## Vector Headline
+
+When you match some specific term, you can also highlight the part of the text
+that contains something interesting as a headline with `ts_headline`.
+
+In the next query, let's find all the "about" pages from companies and search
+for their "our mission is to ..." and discover the companies missions :rocket:
+
+```sql
+WITH mission_statement AS (
+  SELECT SPLIT_PART(url,'/',3) as host,
+  ts_headline('english',
+    body::text,
+    to_tsquery('our+mission+is+to')
+  ) AS mission_search
+  FROM pages
+  WHERE
+  url !~ '/@' AND
+  url ~ '/(about|company|about|about[_\-]?(us)?)\.?(html?)?/?$' AND
+  to_tsquery('our+mission+is+to') @@ to_tsvector(body::text)
+)
+SELECT host, mission_search FROM mission_statement LIMIT 5;
+───────────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│             host             │                                                         mission_search                                                          │
+├──────────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ www.igvita.com               │ <b>mission</b> to supercharge commerce and empower entrepreneurs around the world.                                              │
+│ blog.hypriot.com             │ <b>mission</b> was to make container technology a first class citizen on ARM and IoT devices                                    │
+│ www.twilio.com               │ <b>mission</b> — to figure out how the brain works and then apply it to create more                                             │
+│ blog.takipi.com              │ <b>mission</b> is to help fellow developer and operation teams ship the best products they can, faster                          │
+│ blog.faraday.io              │ <b>mission</b> Faraday leverages ethical AI to predict consumer behavior at scale and power growth for innovative               │
+│ engineering.mixmax.com       │ <b>mission</b> at Mixmax. Check out the product, give us your feedback, and join us on this                                     │
+│ blog.mandrill.com            │ <b>mission</b> to empower the underdog.","Learn more about our Co-founders.","Mailchimp strives to create                       │
+│ kinvolk.io                   │ <b>mission</b> to enhance open source cloud native technologies with the latest Linux capabilities.","Kinvolk is derived        │
+│ blog.honeybadger.io          │ <b>mission</b> has been to make developer’s lives better, and we’ve had a blast                                                 │
+│ codeascraft.com              │ <b>mission</b> is to enable people to make a living making things. The engineers who make                                       │
+│ blog.gojekengineering.com    │ <b>mission</b> to improve the livelihoods of local ojeks (motorcycle taxis). Every customer was 'matched' manually              │
+│ databricks.com               │ <b>mission</b>-critical for solving the biggest problems our world faces. From healthcare to sustainability to transportation   │
+│ drivy.engineering            │ <b>mission</b> to disrupt car ownership and make cities better.","It’s an exciting time to be building                          │
+│ blog.digitalocean.com        │ <b>mission</b> is to simplify cloud computing so developers and businesses can spend more time creating                         │
+└──────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Most common words
 
 We can use [ts_stat](https://www.postgresql.org/docs/current/textsearch-features.html)
@@ -458,7 +500,7 @@ all the urls before fetch it. Feel free to contribute :raised_hands:
 Let's check the average time to download a page grouped by domain:
 
 ```sql
-SELECl SPLIT_PART(url,'/',3) AS domain, AVG(time_to_fetch) FROM pages GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
+SELECT SPLIT_PART(url,'/',3) AS domain, AVG(time_to_fetch) FROM pages GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
                domain                |        avg
 -------------------------------------+--------------------
  michaelcrump.net                    |  64.85552978515625
