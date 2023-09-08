@@ -4,22 +4,32 @@ require_relative '../lib/blog/sniffer'
 
 Blog::Page.create_hypertable_if_not_exists!
 
-urls = ARGV.empty? ?  Blog::TargetSites.all_urls : ARGV
-urls.each do |url|
-  if Blog::Page.where(url: url).exists?
-    puts "Ignoring #{url}"
-    next
-  end
-  spider = Blog::Sniffer::EngineeringDocs.new(root: url)
+if Blog::Page.where(url: ARGV).exists?
+  puts "Destroying previous data from #{ARGV}"
+  puts Blog::Page.where("url ~ '^#{ARGV.last}'").delete_all
+end
 
-  begin
-    spider.results.lazy.each_with_index do |result, i|
-      page = Blog::Page.new(result)
-      puts page.url
-      page.save
+urls = ARGV.empty? ?  Blog::TargetSites.all_urls : ARGV
+urls.map!{|url| url.start_with?("http") ? url : "https://#{url}"}
+begin
+  urls.each do |url|
+    if Blog::Page.where(url: url).exists?
+      puts "Ignoring #{url}"
+
+      next
     end
-  rescue Interrupt, IOError
-    require 'pry'; binding.pry
+    spider = Blog::Sniffer::EngineeringDocs.new(root: url)
+    begin
+      spider.results.lazy.each_with_index do |result, i|
+        page = Blog::Page.new(result)
+        puts page.url
+        page.save
+      end
+    rescue Interrupt, IOError, Error
+      require 'pry'; binding.pry
+    end
   end
+rescue
+  require 'pry'; binding.pry
 end
 
