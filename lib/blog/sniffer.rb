@@ -21,8 +21,14 @@ module Blog
         enqueue(@processor.root)
       end
 
+      def ignore?(url)
+        false
+      end
+
       def enqueue(url)
+        return if ignore?(url)
         return if @urls.include? url
+
         @urls << url
       end
 
@@ -87,6 +93,7 @@ module Blog
 
         page.links_with(href: /^\/|^#{Regexp.escape(@root)}/).each do |link|
           next if link.href =~ /\.(mp4|pdf|png|docx|jpg|jpeg)$/
+          next if link.href =~ /\/(cdn-cgi|static)\//
           spider.enqueue(build_url(link.href))
         end
         metadata
@@ -101,12 +108,14 @@ module Blog
       end
 
       def normalize_url url
-        uri = URI.parse(url.to_s)
+        url = URI.decode_www_form(url)[0][0]
+        uri = URI.parse(url)
+
         uri.normalize!
         uri.query = nil
-        URI.encode(uri.to_s.gsub(/[\?#]+$/,''))
+        URI.encode(uri.to_s.gsub(/[\?#].+$/,''))
       rescue
-        url.split("?").first
+        url && url.split("?").first || url
       end
 
       def metadata_from(page)
