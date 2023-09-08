@@ -5,6 +5,8 @@ require "blog/sniffer"
 require 'reality'
 require "pry"
 
+Blog::Page.create_hypertable_if_not_exists!
+
 def entity(name)
   Reality::Entity.new(name).tap(&:load!)
 end
