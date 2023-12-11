@@ -749,6 +749,40 @@ SELECT word, count(*) FROM words where LENGTH(word) > 5 GROUP BY 1 ORDER BY 2 DE
 If you reached the end of the analyzes with me, please, go ahead and try it
 yourself! Contribute with any insights you have :)
 
+## Ranking search
+
+I often need to search for Timescale content and I build this snippet which
+allows me to mix text search with similarity using levenshtein.
+
+```sql
+create extension pg_trgm;
+drop materialized view timescale_content  cascade;
+create materialized view timescale_content as SELECT pages.title,
+    pages.url,
+    to_tsvector(regexp_replace(pages.url, '[^\w]+'::text, ' '::text, 'gi'::text) || pages.title) AS search_vector
+   FROM pages
+  WHERE pages.url ~ '^https://(((blog|docs|www)\.)?timescale\.com|github.com/timescale)'::text;
+
+CREATE OR REPLACE FUNCTION get_ts_url_for(text, integer default 5) RETURNS setof ranked_post
+  AS $$
+    SELECT title, url,
+    ts_rank_cd(search_vector, query) + similarity(url, $1) AS rank
+    FROM timescale_content, plainto_tsquery('english', $1) query
+    WHERE query @@ search_vector OR similarity(url, $1) > 0.0
+    ORDER BY rank DESC NULLS LAST
+    LIMIT $2;
+$$
+LANGUAGE SQL;
+```
+
+Then you can get searches mixing both methods:
+
+```sql
+select distinct url from get_ts_url_for('gh tsdb tkit issues', 1);
+select distinct url from get_ts_url_for('ts /community', 1);
+```
+
+
 ## Usage
 
 Check [bin/blog-sniffer](bin/blog-sniffer) to get more details in a massive
