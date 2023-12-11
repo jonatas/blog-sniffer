@@ -1,8 +1,8 @@
-require 'active_record'
+require 'timescaledb'
 
 module Blog
-  class Page < ActiveRecord::Base
-    self.primary_key = :url
+  class Page < Timescaledb::ApplicationRecord
+    acts_as_hypertable time_column: :time, segmentby_column: :url
 
     before_save :cleanup
 
@@ -15,20 +15,24 @@ module Blog
     def self.create_hypertable_if_not_exists!
       ActiveRecord::Base.establish_connection(ENV['PG_URI'])
       unless self.table_exists?
-        self.connection.execute(<<~SQL)
-          CREATE TABLE IF NOT EXISTS pages (
-            time TIMESTAMPTZ NOT NULL,
-            url text,
-            time_to_fetch real,
-            title text,
-            headers text[],
-            links jsonb,
-            codeblocks text[],
-            body text[],
-            html_size integer);
+        hypertable_options = {
+          time_column: 'time',
+          chunk_time_interval: '1 day',
+        }
 
-          SELECT create_hypertable('pages', 'time');
-        SQL
+        connection.instance_exec do
+          create_table(:pages, id: false, hypertable: hypertable_options) do |t|
+            t.timestamptz :time, null: false
+            t.text :url, null: false
+            t.float :time_to_fetch
+            t.text :title, null: false
+            t.text :headers, array: true, default: []
+            t.jsonb :links
+            t.text :body, array: true, default: []
+            t.text :codeblocks, array: true, default: []
+            t.integer :html_size
+          end
+        end
       end
     end
   end
